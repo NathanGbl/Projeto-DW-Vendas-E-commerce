@@ -1,15 +1,12 @@
 from sqlalchemy import create_engine
-import pyodbc
 
 def nova_conexao(
-    user:str,
-    senha:str,
-    servidor:str,
-    nome_banco:str
+    server:str,
+    banco:str
     ):
     try:
         engine = create_engine(
-            f"mssql+pyodbc://{user}:{senha}@{servidor}/{nome_banco}?driver=ODBC+Driver+17+for+SQL+Server"
+            f"mssql+pyodbc://@{server}/{banco}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
         )
     except Exception as e:
         print(f"Erro ao conectar: {e}")
