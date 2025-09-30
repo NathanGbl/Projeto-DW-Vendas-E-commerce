@@ -1,14 +1,11 @@
-from fileinput import filename
 import os
 import kagglehub
 import pandas as pd
 import sys
 pasta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, pasta_raiz)
-from func.conn import nova_conexao  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
-import pyodbc  # noqa: E402
-from utils.envia_dados_banco import carrega_base
+from src.utils.envia_dados_banco import carrega_base  # noqa: E402
 
 load_dotenv()
 
@@ -36,4 +33,3 @@ def insere_arquivo(caminho_arquivo:str):
       
 if __name__ == "__main__":
   insere_arquivo("olistbr/brazilian-ecommerce")
-  # print(pyodbc.drivers())
