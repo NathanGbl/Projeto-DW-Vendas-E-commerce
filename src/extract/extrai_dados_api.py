@@ -9,8 +9,8 @@ from func.conn import nova_conexao
 load_dotenv()
 
 def extrai_dados(server: str, database: str, tabela_file: str, url: str):
-    with nova_conexao(server, database).connect() as engine:
-        engine.execute(text(f"TRUNCATE TABLE {database}..{tabela_file}"))
+    # with nova_conexao(server, database).connect() as engine:
+    #     engine.execute(text(f"TRUNCATE TABLE {database}..{tabela_file}"))
         
     with httpx.Client(timeout=60.0) as client:
         offset = 0
