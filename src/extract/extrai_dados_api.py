@@ -4,23 +4,26 @@ from dotenv import load_dotenv
 from minio import Minio
 import pandas as pd
 from sqlalchemy import text
-from src.utils.envia_dados_banco import carrega_base
+from utils.database import carrega_base
+from utils.files import limpa_pasta
 from func.conn import nova_conexao
+from datetime import datetime
 
 load_dotenv()
-
-client = Minio(
-    os.getenv("MINIO_ENDPOINT").replace("http://", ""),
-    access_key=os.getenv("MINIO_ACCESS_KEY"),
-    secret_key=os.getenv("MINIO_SECRET_KEY"),
-)
 
 def extrai_dados(
     minio_endpoint: str, 
     minio_access: str, 
     minio_secret: str, 
-    bucket:str, 
-    url: str):        
+    bucket: str,
+    pasta: str,
+    arquivo: str,
+    url: str):
+    client_minio = Minio(
+        minio_endpoint,
+        minio_access,
+        minio_secret,
+    )
     with httpx.Client(timeout=60.0) as client:
         offset = 0
         limit = 1000
@@ -37,9 +40,10 @@ def extrai_dados(
                     print("Fim dos dados")
                     break
                 
-                df = pd.DataFrame(dados).to_parquet("/src/extract/dados")
+                df = pd.DataFrame(dados)
+                data_hoje = datetime.now().strftime("YYYYmmdd")
+                df.to_parquet(f"data/bronze/{pasta}/{arquivo}_{data_hoje}.parquet")
                 offset+=limit
-                carrega_base(database, tabela_file, df)
         except Exception as e:
             print(f"Erro ao extrair dados clientes: {e}")
 
@@ -49,7 +53,7 @@ def extrai_dados_clientes():
     server = os.getenv("SERVER")
     table_name = "FILE_CLIENTES"
     
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados()
     
 def extrai_dados_localizacao():
     url_api = os.getenv("URL_BASE") + "/location"
@@ -116,6 +120,7 @@ def extrai_dados_product_category():
     extrai_dados(server, database, table_name, url_api)
 
 def main():
+    limpa_pasta("data", "")
     extrai_dados_clientes()
     
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import sys
 pasta_raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, pasta_raiz)
 from dotenv import load_dotenv  # noqa: E402
-from src.utils.envia_dados_banco import carrega_base  # noqa: E402
+from utils.database import carrega_base  # noqa: E402
 
 load_dotenv()
 
