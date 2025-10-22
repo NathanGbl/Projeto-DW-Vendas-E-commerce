@@ -1,6 +1,7 @@
 import os
 import httpx
 from dotenv import load_dotenv
+from minio import Minio
 import pandas as pd
 from sqlalchemy import text
 from src.utils.envia_dados_banco import carrega_base
@@ -8,10 +9,18 @@ from func.conn import nova_conexao
 
 load_dotenv()
 
-def extrai_dados(server: str, database: str, tabela_file: str, url: str):
-    # with nova_conexao(server, database).connect() as engine:
-    #     engine.execute(text(f"TRUNCATE TABLE {database}..{tabela_file}"))
-        
+client = Minio(
+    os.getenv("MINIO_ENDPOINT").replace("http://", ""),
+    access_key=os.getenv("MINIO_ACCESS_KEY"),
+    secret_key=os.getenv("MINIO_SECRET_KEY"),
+)
+
+def extrai_dados(
+    minio_endpoint: str, 
+    minio_access: str, 
+    minio_secret: str, 
+    bucket:str, 
+    url: str):        
     with httpx.Client(timeout=60.0) as client:
         offset = 0
         limit = 1000
@@ -28,7 +37,7 @@ def extrai_dados(server: str, database: str, tabela_file: str, url: str):
                     print("Fim dos dados")
                     break
                 
-                df = pd.DataFrame(dados)
+                df = pd.DataFrame(dados).to_parquet("/src/extract/dados")
                 offset+=limit
                 carrega_base(database, tabela_file, df)
         except Exception as e:

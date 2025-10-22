@@ -10,6 +10,7 @@ dependencies = [
     "httpx>=0.28.1",
     "kaggle>=1.7.4.5",
     "kagglehub>=0.3.13",
+    "minio>=7.2.18",
     "pandas>=2.3.2",
     "pyodbc>=5.2.0",
     "pyspark>=4.0.1",
