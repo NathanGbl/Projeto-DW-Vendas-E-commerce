@@ -1,127 +1,181 @@
-import os
+import os, sys
+
+os.environ["PYSPARK_PYTHON"] = sys.executable
+os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
+
+import pyspark
+os.environ["SPARK_HOME"] = os.path.dirname(pyspark.__file__)
+
 import httpx
 from dotenv import load_dotenv
 from minio import Minio
 import pandas as pd
-from sqlalchemy import text
-from utils.database import carrega_base
-from utils.files import limpa_pasta
-from func.conn import nova_conexao
-from datetime import datetime
+# from utils.files import limpa_pasta
+from delta import configure_spark_with_delta_pip
+from pyspark.sql import SparkSession
 
 load_dotenv()
+
+os.environ["PYSPARK_PYTHON"] = sys.executable
+os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
+
+builder = (
+    SparkSession.builder
+        .appName("etl_ecommerce")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config("spark.hadoop.fs.s3a.access.key", os.getenv("MINIO_ACCESS_KEY"))
+        .config("spark.hadoop.fs.s3a.secret.key", os.getenv("MINIO_SECRET_KEY"))
+        .config("spark.hadoop.fs.s3a.endpoint", os.getenv("MINIO_ENDPOINT"))
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+)
+spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
 def extrai_dados(
     minio_endpoint: str, 
     minio_access: str, 
     minio_secret: str, 
     bucket: str,
-    pasta: str,
-    arquivo: str,
+    pasta_minio: str,
     url: str):
-    client_minio = Minio(
-        minio_endpoint,
-        minio_access,
-        minio_secret,
-    )
-    with httpx.Client(timeout=60.0) as client:
-        offset = 0
-        limit = 1000
+    try:
+        client = Minio(
+            minio_endpoint.replace("http://", ""),
+            minio_access,
+            minio_secret,
+            secure=False
+        )
+    except Exception as e:
+        print(f"\nCredenciais erradas para o minio {e}\n")
+        
+    offset = 0
+    limit = 1000
+    df_list = []
+    with httpx.Client(timeout=60.0) as http:
         try:
             while True:
-                res = client.get(url, params={"limit": limit, "offset":offset})
-                if res.status_code != 200:
-                    print(f"Erro: {res.status_code} => {res.text}")
-                    break
-                
+                res = http.get(url, params={"limit": limit, "offset":offset})
+                res.raise_for_status()
                 dados = res.json()
                 
                 if not dados:
                     print("Fim dos dados")
                     break
                 
-                df = pd.DataFrame(dados)
-                data_hoje = datetime.now().strftime("YYYYmmdd")
-                df.to_parquet(f"data/bronze/{pasta}/{arquivo}_{data_hoje}.parquet")
+                df_pandas = pd.DataFrame(dados)
+                df_list.append(df_pandas)
+                
                 offset+=limit
         except Exception as e:
-            print(f"Erro ao extrair dados clientes: {e}")
+            print(f"\nErro ao extrair dados clientes: {e}\n")
+    
+    bronze_path = f"s3a://{bucket}/bronze/{pasta_minio}"
+    df = spark.createDataFrame(df_list)
+    
+    df.write.format("parquet").mode("overwrite").option("mergeSchema", "true").save(bronze_path)
 
 def extrai_dados_clientes():
     url_api = os.getenv("URL_BASE") + "/customers"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_CLIENTES"
-    
-    extrai_dados()
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/customers",
+        url_api
+        )
     
 def extrai_dados_localizacao():
     url_api = os.getenv("URL_BASE") + "/location"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_LOCALIZACAO"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/location",
+        url_api
+        )
     
 def extrai_dados_itens_pedidos():
     url_api = os.getenv("URL_BASE") + "/order_items"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_ITENS_PEDIDOS"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/order_items",
+        url_api
+        )
     
 def extrai_dados_pagamentos():
     url_api = os.getenv("URL_BASE") + "/payments"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_PAGAMENTOS"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/payments",
+        url_api
+        )
     
 def extrai_dados_avaliacoes_pedidos():
     url_api = os.getenv("URL_BASE") + "/reviews"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_REVIEWS"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/reviews",
+        url_api
+        )
     
 def extrai_dados_pedidos():
     url_api = os.getenv("URL_BASE") + "/orders"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_PEDIDOS"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/orders",
+        url_api
+        )
     
 def extrai_dados_produtos():
     url_api = os.getenv("URL_BASE") + "/products"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_PRODUTOS"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/products",
+        url_api
+        )
     
 def extrai_dados_vendedores():
     url_api = os.getenv("URL_BASE") + "/sellers"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_VENDEDORES"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/sellers",
+        url_api
+        )
 
 def extrai_dados_product_category():
     url_api = os.getenv("URL_BASE") + "/product_category"
-    database = os.getenv("ODS")
-    server = os.getenv("SERVER")
-    table_name = "FILE_PRODUCT_CATEGORY"
-    
-    extrai_dados(server, database, table_name, url_api)
+    extrai_dados(
+        os.getenv("MINIO_ENDPOINT"), 
+        os.getenv("MINIO_ACCESS_KEY"), 
+        os.getenv("MINIO_SECRET_KEY"),
+        "bronze",
+        "/sellers",
+        url_api
+        )
 
 def main():
-    limpa_pasta("data", "")
     extrai_dados_clientes()
+    spark.stop()
     
 if __name__ == "__main__":
     main()
