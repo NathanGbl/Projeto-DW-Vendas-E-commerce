@@ -1,52 +1,79 @@
-import os, sys
-
-os.environ["PYSPARK_PYTHON"] = sys.executable
-os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
-
-import pyspark
-os.environ["SPARK_HOME"] = os.path.dirname(pyspark.__file__)
-
+import os
+import sys
 import httpx
 from dotenv import load_dotenv
 from minio import Minio
 import pandas as pd
-# from utils.files import limpa_pasta
-from delta import configure_spark_with_delta_pip
+
+# Define os paths ANTES de importar pyspark
+venv_python = sys.executable
+os.environ["PYSPARK_PYTHON"] = venv_python
+os.environ["PYSPARK_DRIVER_PYTHON"] = venv_python
+
+# Java
+os.environ["JAVA_HOME"] = r"C:\Program Files\Eclipse Adoptium\jdk-17.0.16.8-hotspot"
+# REMOVA ESTA LINHA:
+# os.environ["HADOOP_HOME"] = r"C:\hadoop"
+os.environ["PATH"] = os.environ["JAVA_HOME"] + r"\bin;" + os.environ.get("PATH", "")
+
+# Agora importa pyspark e define SPARK_HOME
+import pyspark
+print(f"PySpark: {pyspark.__version__}")
+os.environ["SPARK_HOME"] = os.path.dirname(pyspark.__file__)
+
 from pyspark.sql import SparkSession
 
 load_dotenv()
 
-os.environ["PYSPARK_PYTHON"] = sys.executable
-os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
-
-builder = (
-    SparkSession.builder
-        .appName("etl_ecommerce")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-        .config("spark.hadoop.fs.s3a.access.key", os.getenv("MINIO_ACCESS_KEY"))
-        .config("spark.hadoop.fs.s3a.secret.key", os.getenv("MINIO_SECRET_KEY"))
-        .config("spark.hadoop.fs.s3a.endpoint", os.getenv("MINIO_ENDPOINT"))
-        .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-)
-spark = configure_spark_with_delta_pip(builder).getOrCreate()
+def cria_spark_session(
+    minio_endpoint: str, 
+    minio_access: str, 
+    minio_secret: str, 
+    is_endpoint_https: bool, 
+    app_name: str) -> SparkSession:
+    
+    spark = (
+        SparkSession.builder
+            .appName(app_name)
+            # Adicione os JARs do S3A
+            .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262")
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3a.endpoint", minio_endpoint)
+            .config("spark.hadoop.fs.s3a.access.key", minio_access)
+            .config("spark.hadoop.fs.s3a.secret.key", minio_secret)
+            .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "true" if is_endpoint_https else "false")
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            # Delta Lake
+            # .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            # .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            .getOrCreate()
+    )
+    
+    print("config2")
+    return spark
 
 def extrai_dados(
+    spark: SparkSession,
     minio_endpoint: str, 
     minio_access: str, 
     minio_secret: str, 
     bucket: str,
     pasta_minio: str,
     url: str):
+    print("Client")
     try:
         client = Minio(
             minio_endpoint.replace("http://", ""),
             minio_access,
             minio_secret,
-            secure=False
+            secure=minio_endpoint.startswith("https")
         )
     except Exception as e:
         print(f"\nCredenciais erradas para o minio {e}\n")
+        return
+        
+    if not client.bucket_exists(bucket):
+        client.make_bucket(bucket)
         
     offset = 0
     limit = 1000
@@ -68,20 +95,33 @@ def extrai_dados(
                 offset+=limit
         except Exception as e:
             print(f"\nErro ao extrair dados clientes: {e}\n")
+            return
+    
+    if not df_list:
+        return
     
     bronze_path = f"s3a://{bucket}/bronze/{pasta_minio}"
-    df = spark.createDataFrame(df_list)
+    df_concatenado = pd.concat(df_list, ignore_index=True)
+    df = spark.createDataFrame(df_concatenado)
     
     df.write.format("parquet").mode("overwrite").option("mergeSchema", "true").save(bronze_path)
 
-def extrai_dados_clientes():
+def extrai_dados_clientes(
+    spark: SparkSession,
+    minio_endpoint: str,
+    minio_access_key: str,
+    minio_secret_key: str
+):
+    print("Clientes")
+    endpoint_dados = "customers"
     url_api = os.getenv("URL_BASE") + "/customers"
     extrai_dados(
-        os.getenv("MINIO_ENDPOINT"), 
-        os.getenv("MINIO_ACCESS_KEY"), 
-        os.getenv("MINIO_SECRET_KEY"),
-        "bronze",
-        "/customers",
+        spark,
+        minio_endpoint,
+        minio_access_key,
+        minio_secret_key,
+        "datalake",
+        endpoint_dados,
         url_api
         )
     
@@ -174,7 +214,21 @@ def extrai_dados_product_category():
         )
 
 def main():
-    extrai_dados_clientes()
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+    MINIO_ACCESS = os.getenv("MINIO_ACCESS_KEY")
+    MINIO_SECRET = os.getenv("MINIO_SECRET_KEY")
+        
+    spark = cria_spark_session(
+        MINIO_ENDPOINT, 
+        MINIO_ACCESS, 
+        MINIO_SECRET, 
+        False, 
+        "extract_ecommerce")
+    extrai_dados_clientes(spark,
+        MINIO_ENDPOINT, 
+        MINIO_ACCESS, 
+        MINIO_SECRET)
+    
     spark.stop()
     
 if __name__ == "__main__":
