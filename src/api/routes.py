@@ -26,7 +26,8 @@ def lista_dados_clientes(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            clientes = list(res.mappings())
+            # clientes = list(res.mappings())
+            clientes = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar clientes {e}")
     return clientes
@@ -48,7 +49,7 @@ def lista_dados_geograficos(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            localizacoes = list(res.mappings())
+            localizacoes = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar localizações {e}")
     return localizacoes
@@ -70,7 +71,7 @@ def lista_itens_pedidos(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            itens_pedido = list(res.mappings())
+            itens_pedido = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar itens pedidos {e}")
     return itens_pedido
@@ -92,7 +93,7 @@ def lista_pagamentos(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            pagamentos = list(res.mappings())
+            pagamentos = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar pagamentos {e}")
     return pagamentos
@@ -114,7 +115,7 @@ def lista_reviews(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            reviews = list(res.mappings())
+            reviews = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar reviews {e}")
     return reviews
@@ -136,7 +137,7 @@ def lista_pedidos(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            pedidos = list(res.mappings())
+            pedidos = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar pedidos {e}")
     return pedidos
@@ -158,7 +159,7 @@ def lista_produtos(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            produtos = list(res.mappings())
+            produtos = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar produtos {e}")
     return produtos
@@ -180,7 +181,7 @@ def lista_vendedores(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            vendedores = list(res.mappings())
+            vendedores = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar vendedores {e}")
     return vendedores
@@ -202,7 +203,7 @@ def lista_categoria_produto(
                     OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY
                     """)
             )
-            categorias_produto = list(res.mappings())
+            categorias_produto = res.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar categorias de produto {e}")
     return categorias_produto

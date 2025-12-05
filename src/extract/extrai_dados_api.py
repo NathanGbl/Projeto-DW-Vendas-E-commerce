@@ -1,26 +1,8 @@
 import os
-import sys
 import httpx
 from dotenv import load_dotenv
 from minio import Minio
 import pandas as pd
-
-# Define os paths ANTES de importar pyspark
-venv_python = sys.executable
-os.environ["PYSPARK_PYTHON"] = venv_python
-os.environ["PYSPARK_DRIVER_PYTHON"] = venv_python
-
-# Java
-os.environ["JAVA_HOME"] = r"C:\Program Files\Eclipse Adoptium\jdk-17.0.16.8-hotspot"
-# REMOVA ESTA LINHA:
-# os.environ["HADOOP_HOME"] = r"C:\hadoop"
-os.environ["PATH"] = os.environ["JAVA_HOME"] + r"\bin;" + os.environ.get("PATH", "")
-
-# Agora importa pyspark e define SPARK_HOME
-import pyspark
-print(f"PySpark: {pyspark.__version__}")
-os.environ["SPARK_HOME"] = os.path.dirname(pyspark.__file__)
-
 from pyspark.sql import SparkSession
 
 load_dotenv()
