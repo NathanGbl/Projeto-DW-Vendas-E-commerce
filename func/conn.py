@@ -1,25 +1,27 @@
 import os
-from sqlalchemy import create_engine
+import sqlalchemy
 from urllib.parse import quote_plus
 
 def nova_conexao(
     server:str,
     banco:str
-    ):
+    ) -> sqlalchemy.Engine:
     user, pwd = os.getenv("USER_SERVER"), os.getenv("PASS_SERVER")
+    
     try:
         params = quote_plus(
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            "DRIVER={ODBC Driver 18 for SQL Server};"
             f"SERVER={server};"
             f"DATABASE={banco};"
             f"UID={user};"
             f"PWD={pwd};"
-            f"Trusted_Connection=yes;"
-            f"TrusServerCertificate=yes;"
+            # f"Trusted_Connection=yes;"
+            f"TrustServerCertificate=yes;"
             f"Encrypt=yes;"
         )
-        engine = create_engine(
-            f"mssql+pyodbc://?odbc_connect={params}"
+        engine = sqlalchemy.create_engine(
+            f"mssql+pyodbc://?odbc_connect={params}",
+            pool_pre_ping=True
         )
         
         return engine

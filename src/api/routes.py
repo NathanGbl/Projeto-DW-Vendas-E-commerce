@@ -1,12 +1,10 @@
 import os
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append("..")
 from func.conn import nova_conexao
 from sqlalchemy import text
 
-load_dotenv()
 app = FastAPI()
 
 @app.get("/customers")
